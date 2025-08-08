@@ -169,8 +169,44 @@ char* extractContentToPost(char *buf) {
 	return content;
 }
 
+char* skipWord(char *buf) {
+	while (*buf != '\0' && *buf != ' ' && *buf != '\n') {
+		++buf;
+	}
+	return buf;
+}
 
-char* extractPath(char* buf) {
+char* skipWhitespace(char *buf) {
+	while (*buf == ' ' && *buf == '\n') {
+		++buf;
+	}
+	return buf;
+}
+
+bool isRequestValid(char *buf, bool path_needed, bool additional_data_needed) {
+	buf = skipWord(buf);
+	buf = skipWhitespace(buf);
+	if (*buf == '\0') {
+		return !path_needed;
+	}
+	else if (!path_needed) {
+		return 0;
+	}
+
+	buf = skipWord(buf);
+	buf = skipWhitespace(buf);
+	if (*buf == '\0') {
+		return !additional_data_needed;
+	}
+	else if (!additional_data_needed) {
+		retrun 0;
+	}
+
+	return 1;
+}
+
+
+char* extractPath(char *buf) {
 	while (*buf != '\0' && *buf != ' ' && *buf != '\n') {
 		++buf;
 	}
@@ -205,6 +241,10 @@ void handleClient(int client_fd) {
 		}
 
 		if (myStrcmp(buf, "GET") || myStrcmp(buf, "POST") || myStrcmp(buf, "LIST")) {
+			if (!isRequestValid(buf, 1, myStrcmp(buf, "POST"))) {
+				status = 400;
+				// TODO somehow elegantly respond
+			}
 			char *path = extractPath(buf);
 			int status = path ? checkPathValidity(path, myStrcmp(buf, "LIST")) : 500;
 			if (status != 200) {
@@ -246,6 +286,9 @@ void handleClient(int client_fd) {
 		}
 
 		else if (myStrcmp(buf, "STATUS") || myStrcmp(buf, "QUIT")) {
+			if (!isRequestValid(buf, 0, 0)) {
+				// TODO bad request
+			}
 			char *response = formResponse(200, nullptr);
 			if (sendResponse(client_fd, response)) {
 				break;
@@ -253,6 +296,10 @@ void handleClient(int client_fd) {
 			if (myStrcmp(buf, "QUIT")) {
 				break;
 			}
+		}
+
+		else {
+			// TODO unknown command
 		}
 
 		free(buf);
