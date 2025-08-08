@@ -207,29 +207,19 @@ bool isRequestValid(char *buf, bool path_needed, bool additional_data_needed) {
 
 
 char* extractPath(char *buf) {
-	while (*buf != '\0' && *buf != ' ' && *buf != '\n') {
-		++buf;
-	}
+	buf = skipWord(buf);
+	buf = skipWhitespace(buf);
 
-	while (*buf == ' ' || *buf == '\n') {
-		++buf;
-	}
+	char *start_of_path = buf;
+	char *end_of_path = skipWord(buf);
+	ptrdiff_t path_len = end_of_path - start_of_path
 
-	if (*buf == '\0') {
-		return nullptr;
-	}
-
-	int i = 0;
-	while (*(buf + i) != '\0' && *(buf + i) != ' ' && *buf != '\n') {
-		++i;
-	}
-
-	char *path = malloc((i + 1) * sizeof(char));
+	char *path = malloc(path_len * sizeof(char));
 	if (!path) {
 		return nullptr;
 	}
-	memcpy(path, buf, i);
-	path[i] = '\0';
+	memcpy(path, start_of_path, path_len);
+	path[path_len] = '\0';
 	return path;
 }
 
@@ -242,8 +232,7 @@ void handleClient(int client_fd) {
 
 		if (myStrcmp(buf, "GET") || myStrcmp(buf, "POST") || myStrcmp(buf, "LIST")) {
 			if (!isRequestValid(buf, 1, myStrcmp(buf, "POST"))) {
-				status = 400;
-				// TODO somehow elegantly respond
+				// TODO bad request
 			}
 			char *path = extractPath(buf);
 			int status = path ? checkPathValidity(path, myStrcmp(buf, "LIST")) : 500;
@@ -299,7 +288,7 @@ void handleClient(int client_fd) {
 		}
 
 		else {
-			// TODO unknown command
+			// TODO bad request
 		}
 
 		free(buf);
