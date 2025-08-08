@@ -150,8 +150,23 @@ const char* getFileContent(char *path) {
 	return content.c_str();
 }
 
-const char* getContentToPost(char *buf) {
-	
+char* extractContentToPost(char *buf) {
+	for (int i = 0; i < 2; ++i) {
+		while (*buf != '\0' && *buf != ' ' && *buf != '\n') {
+			++buf;
+		}
+		while (*buf == ' ' || *buf == '\n') {
+			++buf;
+		}
+	}
+	size_t content_len = strlen(buf)
+	char *content = malloc((content_len + 1) * sizeof(char));
+	if (!content) {
+		return nullptr;
+	}
+	memcpy(content, buf, content_len);
+	content[content_len] = '\0';
+	return content;
 }
 
 
@@ -174,6 +189,9 @@ char* extractPath(char* buf) {
 	}
 
 	char *path = malloc((i + 1) * sizeof(char));
+	if (!path) {
+		return nullptr;
+	}
 	memcpy(path, buf, i);
 	path[i] = '\0';
 	return path;
@@ -201,7 +219,7 @@ void handleClient(int client_fd) {
 				continue;
 			}
 			if (myStrcmp(buf, "POST")) {
-				char *content = getContentToPost(buf);
+				char *content = extractContentToPost(buf);
 				// TODO get contents
 				// TODO post data
 			}
