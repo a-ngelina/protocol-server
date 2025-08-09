@@ -175,9 +175,20 @@ char* extractContentToPost(char *buf) {
 }
 
 bool post(char *path, char *content) {
-	std::ofstream file(path, std::ios::trunc | )
-	// TODO open/create file
-	// TODO post
+	std::ofstream file(path, std::ios::trunc);
+	if (!file.is_open()) {
+		std::cerr << "Failed to create/open file " << path << "\n";
+		return 1;
+	}
+
+	file << content;
+
+	if (file.fail()) {
+		std::cerr << "Failed to copy contents to file " << path << "\n";
+		return 1;
+	}
+	
+	return 0;
 }
 
 char* skipWord(char *buf) {
@@ -279,10 +290,12 @@ void handleClient(int client_fd) {
 					free(buf);
 					continue;
 				}
-				if (post(path, content)) {
-					
+				char *response = formResponse( post(path, content) ?  500 : 200, nullptr);
+				if (sendResponse(client_fd, response)) {
+					free(response);
+					break;
 				}
-				// TODO post data
+				free(response);
 			}
 			else if (myStrcmp(buf, "GET")) {
 				const char *body = getFileContent(path);
