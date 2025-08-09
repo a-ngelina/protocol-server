@@ -7,8 +7,6 @@
 #include<thread>
 #include<unistd.h>
 
-// TODO handle frees
-// TODO handle const strings (state when functions return const char*)
 // TODO add mutex and locks
 
 bool myStrcmp(const char *s1, const char *s2) {
@@ -34,7 +32,7 @@ char* formResponse(int status, char *body) {
     snprintf(response, response_len, "%d %s", status, getMessage(status));
   }
 
-	return request;
+	return response;
 }
 
 bool sendResponse(int client_fd, char *response) {
@@ -264,10 +262,8 @@ void handleClient(int client_fd) {
 				char *response = formResponse(400, nullptr);
 				free(buf);
 				if (sendResponse(client_fd, response)) {
-					free(response);
 					break;
 				}
-				free(response);
 				continue;
 			}
 
@@ -278,10 +274,8 @@ void handleClient(int client_fd) {
 				free(buf);
 				free(path);
 				if (sendResponse(client_fd, response)) {
-					free(response);
 					break;
 				}
-				free(response);
 				continue;
 			}
 			if (myStrcmp(buf, "POST")) {
@@ -291,10 +285,8 @@ void handleClient(int client_fd) {
 				free(path);
 				free(content);
 				if (sendResponse(client_fd, response)) {
-					free(response);
 					break;
 				}
-				free(response);
 			}
 			else if (myStrcmp(buf, "GET")) {
 				const char *body = getFileContent(path);
@@ -303,10 +295,8 @@ void handleClient(int client_fd) {
 				free(path);
 				free(body);
 				if (sendResponse(client_fd, response)) {
-					free(response);
 					break;
 				}
-				free(response);
 			}
 			else {
 				char *body = listDirectory(path);
@@ -315,10 +305,8 @@ void handleClient(int client_fd) {
 				free(path);
 				free(body);
 				if (sendResponse(client_fd, response)) {
-					free(response);
 					break;
 				}
-				free(response);
 			}
 		}
 
@@ -327,18 +315,14 @@ void handleClient(int client_fd) {
 				free(buf);
 				char *response = formResponse(400, nullptr);
 				if (sendResponse(client_fd, response)) {
-					free(response);
 					break;
 				}
-				free(response);
 				continue;
 			}
 			char *response = formResponse(200, nullptr);
 			if (sendResponse(client_fd, response)) {
-				free(response);
 				break;
 			}
-			free(response);
 			if (myStrcmp(buf, "QUIT")) {
 				free(buf);
 				break;
@@ -350,10 +334,8 @@ void handleClient(int client_fd) {
 			free(buf);
 			char *response = formResponse(400, nullptr);
 			if (sendResponse(client_fd, response)) {
-				free(response);
 				break;
 			}
-			free(response);
 		}
   }
 
