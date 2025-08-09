@@ -49,8 +49,7 @@ int checkPathValidity(char *path, bool dir, bool creat) {
 	using fs = std::filesystem;
 
 	try {
-		fs::path cwd = fs::current_path();
-		fs::path full_path = fs::canonical(cwd / "public"  / path);
+		fs::path full_path = fs::weakly_canonical(fs::current_path() / "public" / path);
 
 		if (!full_path.string().starts_with(cwd.string())) {
 			return 403;
