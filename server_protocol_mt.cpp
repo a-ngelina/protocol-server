@@ -149,13 +149,19 @@ char* listDirectory(char *path) {
 	return response;
 }
 
-const char* getFileContent(char *path) {
+char* getFileContent(char *path) {
 	std::ifstream file(path, std::ios::binary);
+	if (!file) {
+		std::cerr << "Error opening file " << path << "\n";
+		return nullptr;
+	}
+
 	auto file_size = std::filesystem::file_size(path);
-	std::string content(file_size);
-	file.read(content.data(), file_size);
+	char *content = malloc((file_size + 1) * sizeof(char));
+	file.read(content, file_size);
+	content[file_size] = '\0';
 	
-	return content.c_str();
+	return content;
 }
 
 char* extractContentToPost(char *buf) {
@@ -176,14 +182,14 @@ char* extractContentToPost(char *buf) {
 
 bool post(char *path, char *content) {
 	std::ofstream file(path, std::ios::trunc);
-	if (!file.is_open()) {
-		std::cerr << "Failed to create/open file " << path << "\n";
+	if (!file) {
+		std::cerr << "Error creating/opening file " << path << "\n";
 		return 1;
 	}
 
 	file << content;
 
-	if (file.fail()) {
+	if (!file) {
 		std::cerr << "Failed to copy contents to file " << path << "\n";
 		return 1;
 	}
@@ -252,45 +258,38 @@ void handleClient(int client_fd) {
 			break;
 		}
 
+
 		if (myStrcmp(buf, "GET") || myStrcmp(buf, "POST") || myStrcmp(buf, "LIST")) {
 			if (!isRequestValid(buf, 1, myStrcmp(buf, "POST"))) {
 				char *response = formResponse(400, nullptr);
+				free(buf);
 				if (sendResponse(client_fd, response)) {
 					free(response);
-					free(buf);
 					break;
 				}
+				free(response);
+				continue;
 			}
 
 			char *path = extractPath(buf);
 			int status = path ? checkPathValidity(path, myStrcmp(buf, "LIST"), myStrcmp(buf, "POST")) : 500;
 			if (status != 200) {
 				char *response = formResponse(status, nullptr);
+				free(buf);
+				free(path);
 				if (sendResponse(client_fd, response)) {
-					free(path);
 					free(response);
 					break;
 				}
-				free(path);
 				free(response);
 				continue;
 			}
 			if (myStrcmp(buf, "POST")) {
 				char *content = extractContentToPost(buf);
-				if (!content) {
-					char *response = formResponse(500, nullptr);
-					if (sendResponse(client_fd, response)) {
-						free(path);
-						free(response);
-						free(buf);
-						break;
-					}
-					free(path);
-					free(response);
-					free(buf);
-					continue;
-				}
-				char *response = formResponse( post(path, content) ?  500 : 200, nullptr);
+				char *response = formResponse( (!content || post(path, content)) ? 500 : 200, nullptr);
+				free(buf);
+				free(path);
+				free(content);
 				if (sendResponse(client_fd, response)) {
 					free(response);
 					break;
@@ -299,7 +298,9 @@ void handleClient(int client_fd) {
 			}
 			else if (myStrcmp(buf, "GET")) {
 				const char *body = getFileContent(path);
-				char *response = formResponse(body ? 200 : 200, body);
+				char *response = formResponse(body ? 200 : 500, body);
+				free(buf);
+				free(path);
 				free(body);
 				if (sendResponse(client_fd, response)) {
 					free(response);
@@ -310,6 +311,8 @@ void handleClient(int client_fd) {
 			else {
 				char *body = listDirectory(path);
 				char *response = formResponse(body ? 200 : 500, body);
+				free(buf);
+				free(path);
 				free(body);
 				if (sendResponse(client_fd, response)) {
 					free(response);
@@ -321,22 +324,37 @@ void handleClient(int client_fd) {
 
 		else if (myStrcmp(buf, "STATUS") || myStrcmp(buf, "QUIT")) {
 			if (!isRequestValid(buf, 0, 0)) {
-				// TODO bad request
+				free(buf);
+				char *response = formResponse(400, nullptr);
+				if (sendResponse(client_fd, response)) {
+					free(response);
+					break;
+				}
+				free(response);
+				continue;
 			}
 			char *response = formResponse(200, nullptr);
 			if (sendResponse(client_fd, response)) {
+				free(response);
 				break;
 			}
+			free(response);
 			if (myStrcmp(buf, "QUIT")) {
+				free(buf);
 				break;
 			}
+			free(buf);
 		}
 
 		else {
-			// TODO bad request
+			free(buf);
+			char *response = formResponse(400, nullptr);
+			if (sendResponse(client_fd, response)) {
+				free(response);
+				break;
+			}
+			free(response);
 		}
-
-		free(buf);
   }
 
   close(client_fd);
