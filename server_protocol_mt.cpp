@@ -47,15 +47,23 @@ bool sendResponse(int client_fd, char *response) {
 	return 0;
 }
 
-int checkPathValidity(char *path, bool dir) {
+int checkPathValidity(char *path, bool dir, bool creat) {
 	using fs = std::filesystem;
 
 	try {
 		fs::path cwd = fs::current_path();
-		fs::path full_path = fs::canonical(cwd / path);
+		fs::path full_path = fs::canonical(cwd / "public"  / path);
 
 		if (!full_path.string().starts_with(cwd.string())) {
 			return 403;
+		}
+
+		if (creat) {
+			fs::path parent_path = full_path.parent_path();
+			if (!fs::exists(parent_path) && !fs::create_directories(parent_path)) {
+				return 500;
+			}
+			return 200;
 		}
 
 		if (!fs::exists(full_path)) {
@@ -152,14 +160,11 @@ const char* getFileContent(char *path) {
 
 char* extractContentToPost(char *buf) {
 	for (int i = 0; i < 2; ++i) {
-		while (*buf != '\0' && *buf != ' ' && *buf != '\n') {
-			++buf;
-		}
-		while (*buf == ' ' || *buf == '\n') {
-			++buf;
-		}
+		buf = skipWord(buf);
+		buf = skipWhitespace(buf);
 	}
-	size_t content_len = strlen(buf)
+
+	size_t content_len = strlen(buf);
 	char *content = malloc((content_len + 1) * sizeof(char));
 	if (!content) {
 		return nullptr;
@@ -167,6 +172,12 @@ char* extractContentToPost(char *buf) {
 	memcpy(content, buf, content_len);
 	content[content_len] = '\0';
 	return content;
+}
+
+bool post(char *path, char *content) {
+	std::ofstream file(path, std::ios::trunc | )
+	// TODO open/create file
+	// TODO post
 }
 
 char* skipWord(char *buf) {
@@ -232,10 +243,16 @@ void handleClient(int client_fd) {
 
 		if (myStrcmp(buf, "GET") || myStrcmp(buf, "POST") || myStrcmp(buf, "LIST")) {
 			if (!isRequestValid(buf, 1, myStrcmp(buf, "POST"))) {
-				// TODO bad request
+				char *response = formResponse(400, nullptr);
+				if (sendResponse(client_fd, response)) {
+					free(response);
+					free(buf);
+					break;
+				}
 			}
+
 			char *path = extractPath(buf);
-			int status = path ? checkPathValidity(path, myStrcmp(buf, "LIST")) : 500;
+			int status = path ? checkPathValidity(path, myStrcmp(buf, "LIST"), myStrcmp(buf, "POST")) : 500;
 			if (status != 200) {
 				char *response = formResponse(status, nullptr);
 				if (sendResponse(client_fd, response)) {
@@ -249,7 +266,22 @@ void handleClient(int client_fd) {
 			}
 			if (myStrcmp(buf, "POST")) {
 				char *content = extractContentToPost(buf);
-				// TODO get contents
+				if (!content) {
+					char *response = formResponse(500, nullptr);
+					if (sendResponse(client_fd, response)) {
+						free(path);
+						free(response);
+						free(buf);
+						break;
+					}
+					free(path);
+					free(response);
+					free(buf);
+					continue;
+				}
+				if (post(path, content)) {
+					
+				}
 				// TODO post data
 			}
 			else if (myStrcmp(buf, "GET")) {
