@@ -1,12 +1,18 @@
 #include<arpa/inet.h>
 #include<cstdlib>
 #include<cstring>
+#include<fcntl.h>
 #include<filesystem>
+#include<fstream>
 #include<iostream>
 #include<sys/socket.h>
 #include<sys/stat.h>
 #include<thread>
 #include<unistd.h>
+
+const char *getMessage(int status);
+char *skipWord(char *buf);
+char *skipWhitespace(char *buf);
 
 bool myStrcmp(const char *s1, const char *s2) {
 	while (*s2 != '\0') {
@@ -23,7 +29,7 @@ char* formResponse(int status, char *body) {
 	int response_len = 24 + 1 + strlen(body) + 1;
   // 24 for status code + message + \n, 1 for \n, body, 1 for \0
 
-  char *response = malloc(response_len);
+  char *response = (char *)malloc(response_len);
 	if (!response) {
 		return nullptr;
 	}
@@ -38,7 +44,7 @@ char* formResponse(int status, char *body) {
 }
 
 bool sendResponse(int client_fd, char *response) {
-	if (send(client_fd, response, strlen(response))) {
+	if (send(client_fd, response, strlen(response), 0)) {
 		std::cerr << "Failed to send response to client\n";
 		free(response);
 		return 1;
@@ -51,7 +57,8 @@ int checkPathValidity(char *path, bool dir, bool creat) {
 	using fs = std::filesystem;
 
 	try {
-		fs::path full_path = fs::weakly_canonical(fs::current_path() / "public" / path);
+		fs::path cwd = fs::current_path();
+		fs::path full_path = fs::weakly_canonical(cwd / "public" / path);
 
 		if (!full_path.string().starts_with(cwd.string())) {
 			return 403;
@@ -103,12 +110,12 @@ const char* getMessage(int status) {
 
 char* readRequest(int client_fd) {
 	size_t buf_cap = 1024;
-	char *buf = malloc(buf_cap * sizeof(char));
+	char *buf = (char *)malloc(buf_cap * sizeof(char));
 	if (!buf) {
 		return nullptr;
 	}
 	
-	ssize_t bytes_read = 0, buf_lenlen = 0;
+	ssize_t bytes_read = 0, buf_len = 0;
 	while ((bytes_read = recv(client_fd, buf + buf_len, buf_cap - buf_len, 0)) > 0) {
 		buf_len += bytes_read;
 		if (bytes_read >= buf_cap - buf_len - 1) {
@@ -146,7 +153,7 @@ int lockFile(char *path, bool exclusive) {
 	return fd;
 }
 
-bool unlockFile(int fd) {
+bool unlockFile(char *path, int fd) {
 	if (flock(fd, LOCK_UN)) {
 		std::cerr << "Failed to unlock " << path << "\n";
 		close(fd);
@@ -164,13 +171,13 @@ char* listDirectory(char *path) {
 	}
 
 	size_t cap = 1024, len = 0;
-	char *response = malloc(cap * sizeof(char));
+	char *response = (char *)malloc(cap * sizeof(char));
 	if (!response) {
 		return nullptr;
 	}
 
 	for (const auto& entry: std::filesystem::directory_iterator(path)) {
-		char *entry_c_str = entry.path().c_str();
+		const char *entry_c_str = entry.path().c_str();
 		size_t entry_len = strlen(entry_c_str);
 		if (entry_len + len > cap - 1) {
 			cap *= 2;
@@ -186,7 +193,7 @@ char* listDirectory(char *path) {
 	}
 	response[len] = '\0';
 
-	if (unlockFile(fd)) {
+	if (unlockFile(path, fd)) {
 		return nullptr;
 	}
 
@@ -206,14 +213,14 @@ char* getFileContent(char *path) {
 	}
 
 	auto file_size = std::filesystem::file_size(path);
-	char *content = malloc((file_size + 1) * sizeof(char));
+	char *content = (char *)malloc((file_size + 1) * sizeof(char));
 	if (!content) {
 		return nullptr;
 	}
 	file.read(content, file_size);
 	content[file_size] = '\0';
 	
-	if (unlockFile(fd)) {
+	if (unlockFile(path, fd)) {
 		return nullptr;
 	}
 
@@ -227,7 +234,7 @@ char* extractContentToPost(char *buf) {
 	}
 
 	size_t content_len = strlen(buf);
-	char *content = malloc((content_len + 1) * sizeof(char));
+	char *content = (char *)malloc((content_len + 1) * sizeof(char));
 	if (!content) {
 		return nullptr;
 	}
@@ -255,7 +262,7 @@ bool post(char *path, char *content) {
 		return 1;
 	}
 
-	if (unlockFile(fd)) {
+	if (unlockFile(post, fd)) {
 		return 1;
 	}
 	
@@ -307,7 +314,7 @@ char* extractPath(char *buf) {
 	char *end_of_path = skipWord(buf);
 	ptrdiff_t path_len = end_of_path - start_of_path;
 
-	char *path = malloc(path_len * sizeof(char));
+	char *path = (char *)malloc(path_len * sizeof(char));
 	if (!path) {
 		return nullptr;
 	}
