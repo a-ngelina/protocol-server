@@ -1,14 +1,15 @@
 #include<arpa/inet.h>
+#include<fcntl.h>
+#include<sys/file.h>
+#include<sys/socket.h>
+#include<unistd.h>
+
 #include<cstdlib>
 #include<cstring>
-#include<fcntl.h>
 #include<filesystem>
 #include<fstream>
 #include<iostream>
-#include<sys/socket.h>
-#include<sys/stat.h>
 #include<thread>
-#include<unistd.h>
 
 const char *getMessage(int status);
 char *skipWord(char *buf);
@@ -54,34 +55,34 @@ bool sendResponse(int client_fd, char *response) {
 }
 
 int checkPathValidity(char *path, bool dir, bool creat) {
-	using fs = std::filesystem;
-
 	try {
-		fs::path cwd = fs::current_path();
-		fs::path full_path = fs::weakly_canonical(cwd / "public" / path);
+		std::filesystem::path cwd = std::filesystem::current_path();
+		std::filesystem::path full_path = std::filesystem::weakly_canonical(cwd / "public" / path);
 
 		if (!full_path.string().starts_with(cwd.string())) {
 			return 403;
 		}
 
 		if (creat) {
-			fs::path parent_path = full_path.parent_path();
-			if (!fs::exists(parent_path) && !fs::create_directories(parent_path)) {
+			std::filesystem::path parent_path = full_path.parent_path();
+			if (!std::filesystem::exists(parent_path) && 
+					!std::filesystem::create_directories(parent_path)) {
 				return 500;
 			}
 			return 200;
 		}
 
-		if (!fs::exists(full_path)) {
+		if (!std::filesystem::exists(full_path)) {
 			return 404;
 		}
 
-		if ((dir && !fs::is_directory(full_path)) || (!dir && !fs::is_regular_file(full_path))) {
+		if ((dir && !std::filesystem::is_directory(full_path)) || 
+				(!dir && !std::filesystem::is_regular_file(full_path))) {
 			return 400;
 		}
 		return 200;
 	}
-	catch (const fs::filesystem_error& e) {
+	catch (const std::filesystem::filesystem_error& e) {
 		std::cerr << "Filesystem error: " << e.what() << "\n";
 		return 500;
 	}
@@ -120,7 +121,7 @@ char* readRequest(int client_fd) {
 		buf_len += bytes_read;
 		if (bytes_read >= buf_cap - buf_len - 1) {
 			buf_cap *= 2;
-			char *new_buf = realloc(buf, buf_cap);
+			char *new_buf = (char *)realloc(buf, buf_cap);
 			if (!new_buf) {
 				free(buf);
 				return nullptr;
@@ -181,7 +182,7 @@ char* listDirectory(char *path) {
 		size_t entry_len = strlen(entry_c_str);
 		if (entry_len + len > cap - 1) {
 			cap *= 2;
-			char *new_response = realloc(response, cap);
+			char *new_response = (char *)realloc(response, cap);
 			if (!new_response) {
 				return nullptr;
 			}
@@ -262,7 +263,7 @@ bool post(char *path, char *content) {
 		return 1;
 	}
 
-	if (unlockFile(post, fd)) {
+	if (unlockFile(path, fd)) {
 		return 1;
 	}
 	
