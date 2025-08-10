@@ -174,6 +174,7 @@ char* listDirectory(char *path) {
 	size_t cap = 1024, len = 0;
 	char *response = (char *)malloc(cap * sizeof(char));
 	if (!response) {
+		unlockFile(path, fd);
 		return nullptr;
 	}
 
@@ -184,6 +185,8 @@ char* listDirectory(char *path) {
 			cap *= 2;
 			char *new_response = (char *)realloc(response, cap);
 			if (!new_response) {
+				free(response);
+				unlockFile(path, fd);
 				return nullptr;
 			}
 			response = new_response;
@@ -195,6 +198,7 @@ char* listDirectory(char *path) {
 	response[len] = '\0';
 
 	if (unlockFile(path, fd)) {
+		free(response);
 		return nullptr;
 	}
 
@@ -210,18 +214,21 @@ char* getFileContent(char *path) {
 	std::ifstream file(path, std::ios::binary);
 	if (!file) {
 		std::cerr << "Error opening file " << path << "\n";
+		unlockFile(path, fd);
 		return nullptr;
 	}
 
 	auto file_size = std::filesystem::file_size(path);
 	char *content = (char *)malloc((file_size + 1) * sizeof(char));
 	if (!content) {
+		unlockFile(path, fd);
 		return nullptr;
 	}
 	file.read(content, file_size);
 	content[file_size] = '\0';
 	
 	if (unlockFile(path, fd)) {
+		free(content);
 		return nullptr;
 	}
 
@@ -253,6 +260,7 @@ bool post(char *path, char *content) {
 	std::ofstream file(path, std::ios::trunc);
 	if (!file) {
 		std::cerr << "Error creating/opening file " << path << "\n";
+		unlockFile(path, fd);
 		return 1;
 	}
 
@@ -260,6 +268,7 @@ bool post(char *path, char *content) {
 
 	if (!file) {
 		std::cerr << "Failed to copy contents to file " << path << "\n";
+		unlockFile(path, fd);
 		return 1;
 	}
 
