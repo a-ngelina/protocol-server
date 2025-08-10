@@ -1,5 +1,6 @@
 #include<arpa/inet.h>
 #include<cstdlib>
+#include<cstring>
 #include<filesystem>
 #include<iostream>
 #include<sys/socket.h>
@@ -23,6 +24,9 @@ char* formResponse(int status, char *body) {
   // 24 for status code + message + \n, 1 for \n, body, 1 for \0
 
   char *response = malloc(response_len);
+	if (!response) {
+		return nullptr;
+	}
   if (body) {
     snprintf(response, response_len, "%d %s\n\n%s", status, getMessage(status), body);
   }
@@ -100,13 +104,21 @@ const char* getMessage(int status) {
 char* readRequest(int client_fd) {
 	size_t buf_cap = 1024;
 	char *buf = malloc(buf_cap * sizeof(char));
+	if (!buf) {
+		return nullptr;
+	}
 	
 	ssize_t bytes_read = 0, buf_lenlen = 0;
 	while ((bytes_read = recv(client_fd, buf + buf_len, buf_cap - buf_len, 0)) > 0) {
 		buf_len += bytes_read;
 		if (bytes_read >= buf_cap - buf_len - 1) {
 			buf_cap *= 2;
-			buf = realloc(buf, buf_cap);
+			char *new_buf = realloc(buf, buf_cap);
+			if (!new_buf) {
+				free(buf);
+				return nullptr;
+			}
+			buf = new_buf;
 		}
 	}
 	if (bytes_read < 0) {
@@ -162,10 +174,11 @@ char* listDirectory(char *path) {
 		size_t entry_len = strlen(entry_c_str);
 		if (entry_len + len > cap - 1) {
 			cap *= 2;
-			response = realloc(cap);
-			if (!response) {
+			char *new_response = realloc(response, cap);
+			if (!new_response) {
 				return nullptr;
 			}
+			response = new_response;
 		}
 
 		memcpy(response + len, entry_c_str, entry_len);
@@ -194,6 +207,9 @@ char* getFileContent(char *path) {
 
 	auto file_size = std::filesystem::file_size(path);
 	char *content = malloc((file_size + 1) * sizeof(char));
+	if (!content) {
+		return nullptr;
+	}
 	file.read(content, file_size);
 	content[file_size] = '\0';
 	
@@ -312,7 +328,7 @@ void handleClient(int client_fd) {
 			if (!isRequestValid(buf, 1, myStrcmp(buf, "POST"))) {
 				char *response = formResponse(400, nullptr);
 				free(buf);
-				if (sendResponse(client_fd, response)) {
+				if (!response || sendResponse(client_fd, response)) {
 					break;
 				}
 				continue;
@@ -324,7 +340,7 @@ void handleClient(int client_fd) {
 				char *response = formResponse(status, nullptr);
 				free(buf);
 				free(path);
-				if (sendResponse(client_fd, response)) {
+				if (!response || sendResponse(client_fd, response)) {
 					break;
 				}
 				continue;
@@ -335,7 +351,7 @@ void handleClient(int client_fd) {
 				free(buf);
 				free(path);
 				free(content);
-				if (sendResponse(client_fd, response)) {
+				if (!response || sendResponse(client_fd, response)) {
 					break;
 				}
 			}
@@ -345,7 +361,7 @@ void handleClient(int client_fd) {
 				free(buf);
 				free(path);
 				free(body);
-				if (sendResponse(client_fd, response)) {
+				if (!response || sendResponse(client_fd, response)) {
 					break;
 				}
 			}
@@ -355,13 +371,13 @@ void handleClient(int client_fd) {
 			if (!isRequestValid(buf, 0, 0)) {
 				free(buf);
 				char *response = formResponse(400, nullptr);
-				if (sendResponse(client_fd, response)) {
+				if (!response || sendResponse(client_fd, response)) {
 					break;
 				}
 				continue;
 			}
 			char *response = formResponse(200, nullptr);
-			if (sendResponse(client_fd, response)) {
+			if (!response || sendResponse(client_fd, response)) {
 				break;
 			}
 			if (myStrcmp(buf, "QUIT")) {
@@ -374,7 +390,7 @@ void handleClient(int client_fd) {
 		else {
 			free(buf);
 			char *response = formResponse(400, nullptr);
-			if (sendResponse(client_fd, response)) {
+			if (!response || sendResponse(client_fd, response)) {
 				break;
 			}
 		}
