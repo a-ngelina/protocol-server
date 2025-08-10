@@ -7,8 +7,6 @@
 #include<thread>
 #include<unistd.h>
 
-// TODO add mutex and locks
-
 bool myStrcmp(const char *s1, const char *s2) {
 	while (*s2 != '\0') {
 		if (*s1 != *s2) {
@@ -120,7 +118,39 @@ char* readRequest(int client_fd) {
 	return buf;
 }
 
+int lockFile(char *path, bool exclusive) {
+	int fd = open(path, O_RDONLY);
+	if (fd < 0) {
+		std::cerr << "Failed to acces " << path << "\n";
+		return fd;
+	}
+
+	if (flock(fd, exclusive ? LOCK_EX : LOCK_SH)) {
+		close(fd);
+		std::cerr << "Failed to lock " << path << "\n";
+		return -1;
+	}
+
+	return fd;
+}
+
+bool unlockFile(int fd) {
+	if (flock(fd, LOCK_UN)) {
+		std::cerr << "Failed to unlock " << path << "\n";
+		close(fd);
+		return 1;
+	}
+
+	close(fd);
+	return 0;
+}
+
 char* listDirectory(char *path) {
+	int fd = lockFile(path, 0);
+	if (fd < 0) {
+		return nullptr;
+	}
+
 	size_t cap = 1024, len = 0;
 	char *response = malloc(cap * sizeof(char));
 	if (!response) {
@@ -143,10 +173,19 @@ char* listDirectory(char *path) {
 	}
 	response[len] = '\0';
 
+	if (unlockFile(fd)) {
+		return nullptr;
+	}
+
 	return response;
 }
 
 char* getFileContent(char *path) {
+	int fd = lockFile(path, 0);
+	if (fd < 0) {
+		return nullptr;
+	}
+
 	std::ifstream file(path, std::ios::binary);
 	if (!file) {
 		std::cerr << "Error opening file " << path << "\n";
@@ -158,6 +197,10 @@ char* getFileContent(char *path) {
 	file.read(content, file_size);
 	content[file_size] = '\0';
 	
+	if (unlockFile(fd)) {
+		return nullptr;
+	}
+
 	return content;
 }
 
@@ -178,6 +221,11 @@ char* extractContentToPost(char *buf) {
 }
 
 bool post(char *path, char *content) {
+	int fd = lockFile(path, 1);
+	if (fd < 0) {
+		return 1;
+	}
+
 	std::ofstream file(path, std::ios::trunc);
 	if (!file) {
 		std::cerr << "Error creating/opening file " << path << "\n";
@@ -188,6 +236,10 @@ bool post(char *path, char *content) {
 
 	if (!file) {
 		std::cerr << "Failed to copy contents to file " << path << "\n";
+		return 1;
+	}
+
+	if (unlockFile(fd)) {
 		return 1;
 	}
 	
@@ -224,7 +276,7 @@ bool isRequestValid(char *buf, bool path_needed, bool additional_data_needed) {
 		return !additional_data_needed;
 	}
 	else if (!additional_data_needed) {
-		retrun 0;
+		return 0;
 	}
 
 	return 1;
@@ -237,7 +289,7 @@ char* extractPath(char *buf) {
 
 	char *start_of_path = buf;
 	char *end_of_path = skipWord(buf);
-	ptrdiff_t path_len = end_of_path - start_of_path
+	ptrdiff_t path_len = end_of_path - start_of_path;
 
 	char *path = malloc(path_len * sizeof(char));
 	if (!path) {
@@ -287,18 +339,8 @@ void handleClient(int client_fd) {
 					break;
 				}
 			}
-			else if (myStrcmp(buf, "GET")) {
-				const char *body = getFileContent(path);
-				char *response = formResponse(body ? 200 : 500, body);
-				free(buf);
-				free(path);
-				free(body);
-				if (sendResponse(client_fd, response)) {
-					break;
-				}
-			}
 			else {
-				char *body = listDirectory(path);
+				char *body = myStrcmp(buf, "GET") ? getFileContent(path) : listDirectory(path);
 				char *response = formResponse(body ? 200 : 500, body);
 				free(buf);
 				free(path);
