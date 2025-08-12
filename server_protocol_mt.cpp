@@ -152,6 +152,15 @@ char* checkPathValidity(char *path, int& status, bool dir, bool creat) {
 				std::cerr << "Failed to create directory\n";
 				return nullptr;
 			}
+			
+			if (!std::filesystem::exists(full_path)) {
+				std::ofstream new_file(full_path);
+				if (!new_file) {
+					std::cerr << "Failed to create file\n";
+					return nullptr;
+				}
+			}
+
 			char *ret = strdup(full_path.c_str());
 			status = ret ? 200 : 500;
 			if (!ret) {
@@ -406,7 +415,7 @@ char* skipWhitespace(char *buf) {
 bool isRequestValid(char *buf, bool path_needed, bool additional_data_needed) {
 	buf = skipWord(buf);
 	buf = skipWhitespace(buf);
-	if (*buf == '\0') {
+	if (*buf == '\0') {	
 		return !path_needed;
 	}
 	else if (!path_needed) {
@@ -479,8 +488,15 @@ void handleClient(int client_fd) {
 				continue;
 			}
 			if (myStrcmp(buf, "POST")) {
-				char *content = extractContentToPost(buf);
-				char *response = formResponse( (!content || post(path, content)) ? 500 : 200, nullptr);
+				char *response = nullptr;
+				char *content = nullptr;
+				if (access(path, W_OK)) {
+					response = formResponse(403, nullptr);
+				}
+				else {
+					content = extractContentToPost(buf);
+					response = formResponse( (!content || post(path, content)) ? 500 : 200, nullptr);
+				}
 				free(buf);
 				free(path);
 				free(content);
@@ -489,8 +505,15 @@ void handleClient(int client_fd) {
 				}
 			}
 			else {
-				char *body = myStrcmp(buf, "GET") ? getFileContent(path) : listDirectory(path);
-				char *response = formResponse(body ? 200 : 500, body);
+				char *body = nullptr;
+				char *response = nullptr;
+				if (access(path, R_OK)) {
+					response = formResponse(403, nullptr);
+				}
+				else {
+					body = myStrcmp(buf, "GET") ? getFileContent(path) : listDirectory(path);
+					response = formResponse(body ? 200 : 500, body);
+				}
 				free(buf);
 				free(path);
 				free(body);

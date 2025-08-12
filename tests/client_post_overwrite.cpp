@@ -163,7 +163,15 @@ int main() {
 	std::cout << "Connected to server\n";
 #endif
 
-	if (sendRequest(server_fd, "LIST test")) {
+	if (sendRequest(server_fd, "POST test/output1.out\nposting the first message")) {
+		return 1;
+	}
+
+	if (receiveResponse(server_fd)) {
+		return 1;
+	}
+
+	if (sendRequest(server_fd, "POST test/output1.out\nposting second message")) {
 		return 1;
 	}
 

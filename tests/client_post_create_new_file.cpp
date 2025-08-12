@@ -163,7 +163,7 @@ int main() {
 	std::cout << "Connected to server\n";
 #endif
 
-	if (sendRequest(server_fd, "LIST test")) {
+	if (sendRequest(server_fd, "POST test/new_file.txt\nclient created this file and posted to it")) {
 		return 1;
 	}
 

@@ -163,7 +163,7 @@ int main() {
 	std::cout << "Connected to server\n";
 #endif
 
-	if (sendRequest(server_fd, "LIST test")) {
+	if (sendRequest(server_fd, "POST test/file_read_only.txt\nposting to a read only file")) {
 		return 1;
 	}
 

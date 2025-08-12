@@ -163,7 +163,7 @@ int main() {
 	std::cout << "Connected to server\n";
 #endif
 
-	if (sendRequest(server_fd, "LIST test")) {
+	if (sendRequest(server_fd, "LIST ../../../../../../etc")) {
 		return 1;
 	}
 

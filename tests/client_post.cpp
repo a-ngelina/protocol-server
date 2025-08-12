@@ -163,7 +163,7 @@ int main() {
 	std::cout << "Connected to server\n";
 #endif
 
-	if (sendRequest(server_fd, "LIST test")) {
+	if (sendRequest(server_fd, "POST test/output1.out\nposting to output1.out file")) {
 		return 1;
 	}
 
