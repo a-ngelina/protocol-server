@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -std=c++20 -DDEBUG
+CXXFLAGS = -std=c++20
 
 SOURCES = string_utilities.cpp request_parsing_response_preparation.cpp network.cpp file_manipulation.cpp server_main.cpp
 
