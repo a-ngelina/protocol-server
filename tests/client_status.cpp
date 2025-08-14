@@ -1,6 +1,7 @@
 #include<arpa/inet.h>
 #include<iostream>
 #include<sys/socket.h>
+#include<unistd.h>
 
 #include"client_functions.h"
 
